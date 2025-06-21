@@ -1,1 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaa Rada ya Masanse</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Splash Screen Styles */
+    #splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    .splash-container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      max-width: 450px;
+      width: 90%;
+      animation: slideUp 0.6s ease-out 0.2s both;
+    }
+
+    .app-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+    }
+
+    h1 {
+      color: white;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #county-select {
+      width: 100%;
+      padding: 16px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      appearance: none;
+      cursor: pointer;
+      position: relative;
+    }
+
+    #county-select:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    #county-select option {
+      background: #4a5568;
+      color: white;
+      padding: 12px;
+    }
+
+    #continue-btn {
+      width: 100%;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #continue-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+    }
+
+    #continue-btn:active {
+      transform: translateY(0);
+    }
+
+    #continue-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Map Container */
+    #map-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      display: none;
+      z-index: 1000;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1001;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(20px);
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .control-btn:hover {
+      transform: scale(1.1);
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Police Marker Styles */
+    .police-marker {
+      background: none;
+      border: none;
+    }
+
+    .police-icon {
+      font-size: 28px;
+      text-align: center;
+      animation: pulse 2s infinite;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from { 
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .splash-container {
+        padding: 30px 20px;
+        margin: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .subtitle {
+        font-size: 14px;
+      }
+
+      .control-panel {
+        bottom: 10px;
+        right: 10px;
+      }
+
+      .control-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+      }
+    }
+
+    /* Custom Leaflet Popup Styles */
+    .leaflet-popup-content-wrapper {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .leaflet-popup-content {
+      margin: 16px;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .leaflet-popup-tip {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash">
+    <div class="splash-container">
+      <div class="app-icon">🚨</div>
+      <h1>Kaa Rada ya Masanse</h1>
+      <p class="subtitle">Select your county to view police activity reports</p>
+      
+      <div class="form-group">
+        <label class="form-label" for="county-select">Choose County</label>
+        <select id="county-select">
+          <option value="">Select your county...</option>
+          <option value="baringo">Baringo</option>
+          <option value="bomet">Bomet</option>
+          <option value="bungoma">Bungoma</option>
+          <option value="busia">Busia</option>
+          <option value="elgeyo-marakwet">Elgeyo-Marakwet</option>
+          <option value="embu">Embu</option>
+          <option value="garissa">Garissa</option>
+          <option value="homa-bay">Homa Bay</option>
+          <option value="isiolo">Isiolo</option>
+          <option value="kajiado">Kajiado</option>
+          <option value="kakamega">Kakamega</option>
+          <option value="kericho">Kericho</option>
+          <option value="kiambu">Kiambu</option>
+          <option value="kilifi">Kilifi</option>
+          <option value="kirinyaga">Kirinyaga</option>
+          <option value="kisii">Kisii</option>
+          <option value="kisumu">Kisumu</option>
+          <option value="kitui">Kitui</option>
+          <option value="kwale">Kwale</option>
+          <option value="laikipia">Laikipia</option>
+          <option value="lamu">Lamu</option>
+          <option value="machakos">Machakos</option>
+          <option value="makueni">Makueni</option>
+          <option value="mandera">Mandera</option>
+          <option value="marsabit">Marsabit</option>
+          <option value="meru">Meru</option>
+          <option value="migori">Migori</option>
+          <option value="mombasa">Mombasa</option>
+          <option value="muranga">Murang'a</option>
+          <option value="nairobi">Nairobi</option>
+          <option value="nakuru">Nakuru</option>
+          <option value="nandi">Nandi</option>
+          <option value="narok">Narok</option>
+          <option value="nyamira">Nyamira</option>
+          <option value="nyandarua">Nyandarua</option>
+          <option value="nyeri">Nyeri</option>
+          <option value="samburu">Samburu</option>
+          <option value="siaya">Siaya</option>
+          <option value="taita-taveta">Taita-Taveta</option>
+          <option value="tana-river">Tana River</option>
+          <option value="tharaka-nithi">Tharaka-Nithi</option>
+          <option value="trans-nzoia">Trans Nzoia</option>
+          <option value="turkana">Turkana</option>
+          <option value="uasin-gishu">Uasin Gishu</option>
+          <option value="vihiga">Vihiga</option>
+          <option value="wajir">Wajir</option>
+          <option value="pokot">West Pokot</option>
+        </select>
+      </div>
+      
+      <button id="continue-btn" disabled>Continue to Map</button>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+      <button class="control-btn" id="location-btn" title="Center on your location">📍</button>
+      <button class="control-btn" id="refresh-btn" title="Refresh reports">🔄</button>
+      <button class="control-btn" id="back-btn" title="Back to county selection">⬅️</button>
+    </div>
+  </div>
+
+  <!-- Leaflet.js -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  
+  <!-- Firebase 9+ (Modular Version) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+
+    // Your Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBJzymGsar5MBmV_Zr6-14zqXKHLASkd9s",
+      authDomain: "kaaradake.firebaseapp.com",
+      databaseURL: "https://kaaradake-default-rtdb.firebaseio.com",
+      projectId: "kaaradake",
+      storageBucket: "kaaradake.firebasestorage.app",
+      messagingSenderId: "494034012255",
+      appId: "1:494034012255:web:aa8057155aafeb337a73ea"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    // ===== COUNTY COORDINATES =====
+    const countyData = {
+      "nairobi": { center: [-1.286389, 36.817223], zoom: 12 },
+      "mombasa": { center: [-4.0435, 39.6682], zoom: 12 },
+      "kisumu": { center: [-0.1022, 34.7617], zoom: 12 },
+      "nakuru": { center: [-0.3031, 36.0800], zoom: 12 },
+      "kakamega": { center: [0.2827, 34.7519], zoom: 12 },
+      "kiambu": { center: [-1.1667, 36.8333], zoom: 11 },
+      "meru": { center: [0.0515, 37.6456], zoom: 12 },
+      "kisii": { center: [-0.6773, 34.7796], zoom: 12 },
+      "nyeri": { center: [-0.4201, 36.9476], zoom: 12 },
+      "uasin-gishu": { center: [0.5143, 35.2698], zoom: 12 },
+      "baringo": { center: [0.4667, 35.9667], zoom: 11 },
+      "bomet": { center: [-0.7816, 35.3416], zoom: 12 },
+      "bungoma": { center: [0.5667, 34.5667], zoom: 12 },
+      "busia": { center: [0.4600, 34.1119], zoom: 12 },
+      "elgeyo-marakwet": { center: [0.5000, 35.5833], zoom: 11 },
+      "embu": { center: [-0.5390, 37.4574], zoom: 12 },
+      "garissa": { center: [-0.4536, 39.6461], zoom: 11 },
+      "homa-bay": { center: [-0.5273, 34.4571], zoom: 12 },
+      "isiolo": { center: [0.3500, 37.5833], zoom: 11 },
+      "kajiado": { center: [-1.8526, 36.7766], zoom: 11 },
+      "kericho": { center: [-0.3667, 35.2833], zoom: 12 },
+      "kilifi": { center: [-3.6333, 39.8500], zoom: 11 },
+      "kirinyaga": { center: [-0.5000, 37.2833], zoom: 12 },
+      "kitui": { center: [-1.3667, 38.0167], zoom: 11 },
+      "kwale": { center: [-4.1833, 39.4500], zoom: 11 },
+      "laikipia": { center: [0.2500, 36.8333], zoom: 11 },
+      "lamu": { center: [-2.2696, 40.9000], zoom: 11 },
+      "machakos": { center: [-1.5167, 37.2667], zoom: 11 },
+      "makueni": { center: [-2.2000, 37.7333], zoom: 11 },
+      "mandera": { center: [3.9167, 41.8333], zoom: 10 },
+      "marsabit": { center: [2.3333, 37.9833], zoom: 10 },
+      "migori": { center: [-1.0667, 34.4667], zoom: 12 },
+      "muranga": { center: [-0.7167, 37.1500], zoom: 12 },
+      "nandi": { center: [0.1833, 35.1000], zoom: 12 },
+      "narok": { center: [-1.0833, 35.8667], zoom: 11 },
+      "nyamira": { center: [-0.5667, 34.9667], zoom: 12 },
+      "nyandarua": { center: [-0.4167, 36.6667], zoom: 11 },
+      "samburu": { center: [1.1667, 36.6667], zoom: 10 },
+      "siaya": { center: [0.0667, 34.2833], zoom: 12 },
+      "taita-taveta": { center: [-3.4000, 38.3667], zoom: 11 },
+      "tana-river": { center: [-1.5000, 39.9167], zoom: 10 },
+      "tharaka-nithi": { center: [-0.3000, 37.8167], zoom: 12 },
+      "trans-nzoia": { center: [1.0167, 34.9833], zoom: 12 },
+      "turkana": { center: [3.1167, 35.6000], zoom: 9 },
+      "vihiga": { center: [0.0833, 34.7167], zoom: 12 },
+      "wajir": { center: [1.7500, 40.0500], zoom: 10 },
+      "pokot": { center: [1.5000, 35.2500], zoom: 11 }
+    };
+
+    // ===== GLOBAL VARIABLES =====
+    let map;
+    let markers = {};
+    let selectedCounty = "";
+    let userLocation = null;
+
+    // ===== SPLASH SCREEN =====
+    document.getElementById('county-select').addEventListener('change', (e) => {
+      document.getElementById('continue-btn').disabled = !e.target.value;
+    });
+
+    document.getElementById('continue-btn').addEventListener('click', () => {
+      selectedCounty = document.getElementById('county-select').value;
+      if (!selectedCounty) return alert("Please select your county!");
+      
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('map-container').style.display = 'block';
+      document.querySelector('.control-panel').style.display = 'flex';
+      
+      initializeMap();
+    });
+
+    // ===== MAP FUNCTIONS =====
+    function initializeMap() {
+      const county = countyData[selectedCounty];
+      map = L.map('map').setView(county.center, county.zoom);
+      
+      // Add dark theme tile layer
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(map);
+
+      // Custom police icon
+      const policeIcon = L.divIcon({
+        html: '<div class="police-icon">🚨</div>',
+        className: 'police-marker',
+        iconSize: [35, 35],
+        iconAnchor: [17, 17]
+      });
+
+      // Listen for reports in this county
+      onValue(ref(database, 'reports/' + selectedCounty), (snapshot) => {
+        const now = Date.now();
+        const data = snapshot.val() || {};
+        
+        // Remove expired reports (>1 hour)
+        Object.keys(markers).forEach(key => {
+          if (!data[key] || (now - markers[key].timestamp > 3600000)) {
+            map.removeLayer(markers[key].marker);
+            delete markers[key];
+          }
+        });
+
+        // Add new reports
+        Object.entries(data).forEach(([reportId, report]) => {
+          if (!markers[reportId] && (now - report.timestamp < 3600000)) {
+            markers[reportId] = {
+              marker: L.marker([report.lat, report.lng], { icon: policeIcon })
+                .addTo(map)
+                .bindPopup(`
+                  <div style="text-align: center;">
+                    <strong>🚨 Police Activity Reported</strong><br>
+                    <small>${new Date(report.timestamp).toLocaleTimeString()}</small><br>
+                    <small>${Math.floor((now - report.timestamp) / 60000)}m ago</small>
+                  </div>
+                `),
+              timestamp: report.timestamp
+            };
+          }
+        });
+      });
+
+      // Click to report
+      map.on('click', (e) => {
+        if (confirm("Report police activity at this location?")) {
+          push(ref(database, 'reports/' + selectedCounty), {
+            lat: e.latlng.lat,
+            lng: e.latlng.lng,
+            timestamp: Date.now()
+          });
+          
+          // Show confirmation
+          const popup = L.popup()
+            .setLatLng([e.latlng.lat, e.latlng.lng])
+            .setContent('<div style="text-align: center; color: #4CAF50;"><strong>✅ Report Added</strong><br><small>Thank you for reporting</small></div>')
+            .openOn(map);
+          
+          setTimeout(() => map.closePopup(popup), 2000);
+        }
+      });
+    }
+
+    // ===== CONTROL PANEL =====
+    document.getElementById('location-btn').addEventListener('click', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          map.setView([lat, lng], 15);
+          
+          // Add user location marker
+          if (userLocation) map.removeLayer(userLocation);
+          userLocation = L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup("📍 Your Location")
+            .openPopup();
+        }, () => {
+          alert("Unable to get your location");
+        });
+      } else {
+        alert("Geolocation is not supported by this browser");
+      }
+    });
+
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(76, 175, 80, 0.9);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        z-index: 2000;
+        animation: fadeIn 0.3s ease-out;
+      `;
+      notification.textContent = '🔄 Reports refreshed';
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 2000);
+    });
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      if (confirm("Return to county selection?")) {
+        location.reload();
+      }
+    });
+  </script>
+</body>
+</html>
