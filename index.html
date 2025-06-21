@@ -360,7 +360,7 @@
   <!-- Firebase 9+ (Modular Version) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+    import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
     // Your Firebase configuration
     const firebaseConfig = {
@@ -379,16 +379,6 @@
 
     // ===== COUNTY COORDINATES =====
     const countyData = {
-      "nairobi": { center: [-1.286389, 36.817223], zoom: 12 },
-      "mombasa": { center: [-4.0435, 39.6682], zoom: 12 },
-      "kisumu": { center: [-0.1022, 34.7617], zoom: 12 },
-      "nakuru": { center: [-0.3031, 36.0800], zoom: 12 },
-      "kakamega": { center: [0.2827, 34.7519], zoom: 12 },
-      "kiambu": { center: [-1.1667, 36.8333], zoom: 11 },
-      "meru": { center: [0.0515, 37.6456], zoom: 12 },
-      "kisii": { center: [-0.6773, 34.7796], zoom: 12 },
-      "nyeri": { center: [-0.4201, 36.9476], zoom: 12 },
-      "uasin-gishu": { center: [0.5143, 35.2698], zoom: 12 },
       "baringo": { center: [0.4667, 35.9667], zoom: 11 },
       "bomet": { center: [-0.7816, 35.3416], zoom: 12 },
       "bungoma": { center: [0.5667, 34.5667], zoom: 12 },
@@ -399,9 +389,13 @@
       "homa-bay": { center: [-0.5273, 34.4571], zoom: 12 },
       "isiolo": { center: [0.3500, 37.5833], zoom: 11 },
       "kajiado": { center: [-1.8526, 36.7766], zoom: 11 },
+      "kakamega": { center: [0.2827, 34.7519], zoom: 12 },
       "kericho": { center: [-0.3667, 35.2833], zoom: 12 },
+      "kiambu": { center: [-1.1667, 36.8333], zoom: 11 },
       "kilifi": { center: [-3.6333, 39.8500], zoom: 11 },
       "kirinyaga": { center: [-0.5000, 37.2833], zoom: 12 },
+      "kisii": { center: [-0.6773, 34.7796], zoom: 12 },
+      "kisumu": { center: [-0.1022, 34.7617], zoom: 12 },
       "kitui": { center: [-1.3667, 38.0167], zoom: 11 },
       "kwale": { center: [-4.1833, 39.4500], zoom: 11 },
       "laikipia": { center: [0.2500, 36.8333], zoom: 11 },
@@ -410,12 +404,17 @@
       "makueni": { center: [-2.2000, 37.7333], zoom: 11 },
       "mandera": { center: [3.9167, 41.8333], zoom: 10 },
       "marsabit": { center: [2.3333, 37.9833], zoom: 10 },
+      "meru": { center: [0.0515, 37.6456], zoom: 12 },
       "migori": { center: [-1.0667, 34.4667], zoom: 12 },
+      "mombasa": { center: [-4.0435, 39.6682], zoom: 12 },
       "muranga": { center: [-0.7167, 37.1500], zoom: 12 },
+      "nairobi": { center: [-1.286389, 36.817223], zoom: 12 },
+      "nakuru": { center: [-0.3031, 36.0800], zoom: 12 },
       "nandi": { center: [0.1833, 35.1000], zoom: 12 },
       "narok": { center: [-1.0833, 35.8667], zoom: 11 },
       "nyamira": { center: [-0.5667, 34.9667], zoom: 12 },
       "nyandarua": { center: [-0.4167, 36.6667], zoom: 11 },
+      "nyeri": { center: [-0.4201, 36.9476], zoom: 12 },
       "samburu": { center: [1.1667, 36.6667], zoom: 10 },
       "siaya": { center: [0.0667, 34.2833], zoom: 12 },
       "taita-taveta": { center: [-3.4000, 38.3667], zoom: 11 },
@@ -423,6 +422,7 @@
       "tharaka-nithi": { center: [-0.3000, 37.8167], zoom: 12 },
       "trans-nzoia": { center: [1.0167, 34.9833], zoom: 12 },
       "turkana": { center: [3.1167, 35.6000], zoom: 9 },
+      "uasin-gishu": { center: [0.5143, 35.2698], zoom: 12 },
       "vihiga": { center: [0.0833, 34.7167], zoom: 12 },
       "wajir": { center: [1.7500, 40.0500], zoom: 10 },
       "pokot": { center: [1.5000, 35.2500], zoom: 11 }
@@ -433,6 +433,8 @@
     let markers = {};
     let selectedCounty = "";
     let userLocation = null;
+    let reportsRef;
+    let reportsListener;
 
     // ===== SPLASH SCREEN =====
     document.getElementById('county-select').addEventListener('change', (e) => {
@@ -452,6 +454,9 @@
 
     // ===== MAP FUNCTIONS =====
     function initializeMap() {
+      // Clear any existing markers
+      clearMarkers();
+      
       const county = countyData[selectedCounty];
       map = L.map('map').setView(county.center, county.zoom);
       
@@ -470,32 +475,48 @@
         iconAnchor: [17, 17]
       });
 
-      // Listen for reports in this county
-      onValue(ref(database, 'reports/' + selectedCounty), (snapshot) => {
+      // Set up Firebase listener for reports in this county
+      reportsRef = ref(database, 'reports/' + selectedCounty);
+      
+      // Remove any existing listener
+      if (reportsListener) {
+        reportsListener(); // This is the unsubscribe function
+      }
+      
+      reportsListener = onValue(reportsRef, (snapshot) => {
         const now = Date.now();
         const data = snapshot.val() || {};
         
-        // Remove expired reports (>1 hour)
+        // First pass: remove expired reports (>1 hour)
         Object.keys(markers).forEach(key => {
-          if (!data[key] || (now - markers[key].timestamp > 3600000)) {
-            map.removeLayer(markers[key].marker);
-            delete markers[key];
+          if (!data[key] || (now - data[key].timestamp > 3600000)) {
+            if (markers[key]) {
+              map.removeLayer(markers[key].marker);
+              delete markers[key];
+              
+              // Remove from Firebase if expired
+              if (now - data[key].timestamp > 3600000) {
+                remove(ref(database, `reports/${selectedCounty}/${key}`));
+              }
+            }
           }
         });
 
-        // Add new reports
+        // Second pass: add new reports
         Object.entries(data).forEach(([reportId, report]) => {
-          if (!markers[reportId] && (now - report.timestamp < 3600000)) {
+          if (!markers[reportId] && (now - report.timestamp <= 3600000)) {
+            const marker = L.marker([report.lat, report.lng], { icon: policeIcon })
+              .addTo(map)
+              .bindPopup(`
+                <div style="text-align: center;">
+                  <strong>🚨 Police Activity Reported</strong><br>
+                  <small>${new Date(report.timestamp).toLocaleString()}</small><br>
+                  <small>${Math.floor((now - report.timestamp) / 60000)}m ago</small>
+                </div>
+              `);
+            
             markers[reportId] = {
-              marker: L.marker([report.lat, report.lng], { icon: policeIcon })
-                .addTo(map)
-                .bindPopup(`
-                  <div style="text-align: center;">
-                    <strong>🚨 Police Activity Reported</strong><br>
-                    <small>${new Date(report.timestamp).toLocaleTimeString()}</small><br>
-                    <small>${Math.floor((now - report.timestamp) / 60000)}m ago</small>
-                  </div>
-                `),
+              marker: marker,
               timestamp: report.timestamp
             };
           }
@@ -505,21 +526,39 @@
       // Click to report
       map.on('click', (e) => {
         if (confirm("Report police activity at this location?")) {
-          push(ref(database, 'reports/' + selectedCounty), {
+          const reportData = {
             lat: e.latlng.lat,
             lng: e.latlng.lng,
             timestamp: Date.now()
-          });
+          };
           
-          // Show confirmation
-          const popup = L.popup()
-            .setLatLng([e.latlng.lat, e.latlng.lng])
-            .setContent('<div style="text-align: center; color: #4CAF50;"><strong>✅ Report Added</strong><br><small>Thank you for reporting</small></div>')
-            .openOn(map);
-          
-          setTimeout(() => map.closePopup(popup), 2000);
+          // Push to Firebase
+          push(reportsRef, reportData)
+            .then(() => {
+              // Show confirmation
+              const popup = L.popup()
+                .setLatLng([e.latlng.lat, e.latlng.lng])
+                .setContent('<div style="text-align: center; color: #4CAF50;"><strong>✅ Report Added</strong><br><small>Thank you for reporting</small></div>')
+                .openOn(map);
+              
+              setTimeout(() => map.closePopup(popup), 2000);
+            })
+            .catch((error) => {
+              console.error("Error adding report:", error);
+              alert("Failed to add report. Please try again.");
+            });
         }
       });
+    }
+
+    // Clear all markers from the map
+    function clearMarkers() {
+      Object.values(markers).forEach(markerData => {
+        if (markerData && markerData.marker) {
+          map?.removeLayer(markerData.marker);
+        }
+      });
+      markers = {};
     }
 
     // ===== CONTROL PANEL =====
@@ -538,6 +577,10 @@
             .openPopup();
         }, () => {
           alert("Unable to get your location");
+        }, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
         });
       } else {
         alert("Geolocation is not supported by this browser");
@@ -545,6 +588,49 @@
     });
 
     document.getElementById('refresh-btn').addEventListener('click', () => {
+      // Force a refresh by removing and re-adding the listener
+      if (reportsListener) {
+        reportsListener();
+      }
+      reportsListener = onValue(reportsRef, (snapshot) => {
+        const now = Date.now();
+        const data = snapshot.val() || {};
+        
+        Object.keys(markers).forEach(key => {
+          if (!data[key] || (now - data[key].timestamp > 3600000)) {
+            if (markers[key]) {
+              map.removeLayer(markers[key].marker);
+              delete markers[key];
+            }
+          }
+        });
+
+        Object.entries(data).forEach(([reportId, report]) => {
+          if (!markers[reportId] && (now - report.timestamp <= 3600000)) {
+            const policeIcon = L.divIcon({
+              html: '<div class="police-icon">🚨</div>',
+              className: 'police-marker',
+              iconSize: [35, 35],
+              iconAnchor: [17, 17]
+            });
+            
+            markers[reportId] = {
+              marker: L.marker([report.lat, report.lng], { icon: policeIcon })
+                .addTo(map)
+                .bindPopup(`
+                  <div style="text-align: center;">
+                    <strong>🚨 Police Activity Reported</strong><br>
+                    <small>${new Date(report.timestamp).toLocaleString()}</small><br>
+                    <small>${Math.floor((now - report.timestamp) / 60000)}m ago</small>
+                  </div>
+                `),
+              timestamp: report.timestamp
+            };
+          }
+        });
+      });
+
+      // Show refresh notification
       const notification = document.createElement('div');
       notification.style.cssText = `
         position: fixed;
@@ -566,6 +652,15 @@
 
     document.getElementById('back-btn').addEventListener('click', () => {
       if (confirm("Return to county selection?")) {
+        // Clean up before leaving
+        if (reportsListener) {
+          reportsListener();
+        }
+        clearMarkers();
+        if (map) {
+          map.off();
+          map.remove();
+        }
         location.reload();
       }
     });
